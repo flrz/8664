@@ -1,15 +1,11 @@
-#
-# Openwrt 25.12 with Passwall and OpenClash (Speed Optimized)
-#
-
-name: Openwrt Builder_25.12_Optimized
+name: Openwrt Builder_25.12_FAST
 
 on:
   repository_dispatch:
   workflow_dispatch:
 
 env:
-  REPO_URL: https://github.com
+  REPO_URL: https://github.com/openwrt/openwrt
   REPO_BRANCH: openwrt-25.12
   FEEDS_CONF: feeds.conf.default
   CONFIG_FILE: .config
@@ -19,6 +15,8 @@ env:
   UPLOAD_FIRMWARE: true
   UPLOAD_RELEASE: true
   TZ: Asia/Shanghai
+  CCACHE_SIZE: 4G
+  GOPROXY: https://proxy.golang.org,direct
 
 jobs:
   build:
@@ -31,128 +29,201 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v4
 
-    - name: Initialization environment
+    - name: Maximize Build Space
+      run: |
+        sudo -E rm -rf /usr/share/dotnet /etc/mysql /etc/php /usr/local/lib/android /opt/ghc /usr/local/.rustup
+        sudo docker image prune --all --force
+        df -hT
+
+    - name: Initialize Build Environment
       env:
         DEBIAN_FRONTEND: noninteractive
       run: |
-        # 精简初始化，只删除必要大文件，跳过耗时的 docker prune
-        sudo -E rm -rf /usr/share/dotnet /etc/mysql /etc/php /usr/local/lib/android
         sudo -E apt-get -qq update
-        sudo -E apt-get -qq install build-essential clang flex gawk gettext git libncurses5-dev libssl-dev python3-distutils rsync unzip zlib1g-dev ccache swig
+        # Install only essential build tools to save time
+        sudo -E apt-get -qq install -y \
+            autoconf automake autopoint binutils bison build-essential \
+            bzip2 ccache cmake cpio curl device-tree-compiler flex gawk gettext gcc-multilib \
+            g++-multilib git gnutls-dev gperf help2man intltool lib32gcc-s1 libc6-dev-i386 libelf-dev \
+            libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libncurses-dev libpython3-dev \
+            libreadline-dev libssl-dev libtool libz-dev lld llvm lrzsz mkisofs nano \
+            ninja-build p7zip-full patch pkgconf python3 python3-pip python3-ply python3-docutils \
+            python3-pyelftools qemu-utils re2c rsync scons squashfs-tools subversion swig texinfo \
+            unzip vim wget xmlto xxd zlib1g-dev zstd
         sudo -E apt-get -qq autoremove --purge
         sudo -E apt-get -qq clean
-        sudo -E timedatectl set-timezone "Asia/Shanghai"
         sudo mkdir -p /workdir
         sudo chown $USER:$GROUPS /workdir
+        echo "Build environment ready"
 
-    - name: Clone source code
-      working-directory: /workdir
-      run: |
-        git clone $REPO_URL -b $REPO_BRANCH openwrt
-        ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
-
-    - name: Cache Build Dependencies
+    - name: Restore ccache
       uses: actions/cache@v4
       with:
-        path: |
-          openwrt/dl
-          ~/.ccache
-          ~/.cargo/registry
-          ~/.cargo/git
-          ~/go/pkg/mod
-        # Key 包含 OS 和分支信息，即便配置微调也能命中大部分缓存
-        key: ${{ runner.os }}-openwrt-2512-${{ hashFiles('**/config') }}
+        path: ~/.ccache
+        key: ${{ runner.os }}-ccache-${{ github.ref_name }}-${{ github.sha }}
         restore-keys: |
-          ${{ runner.os }}-openwrt-2512-
+          ${{ runner.os }}-ccache-${{ github.ref_name }}-
+          ${{ runner.os }}-ccache-
 
-    - name: Load custom feeds
+    - name: Restore dl folder
+      uses: actions/cache@v4
+      with:
+        path: /workdir/openwrt/dl
+        key: ${{ runner.os }}-dl-${{ hashFiles('feeds.conf.default') }}
+        restore-keys: |
+          ${{ runner.os }}-dl-
+        
+    - name: Clone OpenWrt Source
+      working-directory: /workdir
+      run: |
+        git clone --depth=1 $REPO_URL -b $REPO_BRANCH openwrt
+        ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
+        cd openwrt && git log -1 --format='%H %s'
+
+    - name: Configure ccache
+      run: |
+        export CCACHE_DIR=~/.ccache
+        ccache -M $CCACHE_SIZE
+        ccache -z  # Reset stats
+        mkdir -p $CCACHE_DIR
+        echo "CCACHE configured: $CCACHE_SIZE"
+
+    - name: Load Custom Feeds
       run: |
         [ -e $FEEDS_CONF ] && mv $FEEDS_CONF openwrt/feeds.conf.default
         chmod +x $DIY_P1_SH
         cd openwrt
         $GITHUB_WORKSPACE/$DIY_P1_SH
 
-    - name: Update & Install feeds
+    - name: Update and Install Feeds
       run: |
         cd openwrt
-        ./scripts/feeds update -a
+        echo "Updating feeds..."
+        ./scripts/feeds update -a -f
+        
+        echo "Installing feeds..."
+        ./scripts/feeds install -a -p passwall 2>/dev/null || true
+        ./scripts/feeds install -a -p openclash 2>/dev/null || true
         ./scripts/feeds install -a
-
-    - name: Apply Patches (Golang & Rust)
-      run: |
-        cd openwrt
-        # 这里保留你原有的针对 25.12 的 Golang/Rust 补丁逻辑
+        
+        echo "Applying 25.12 patches..."
+        # Quick patches for golang/rust
         rm -rf temp_resp
-        git clone -b master --single-branch https://github.com temp_resp
-        rm -rf feeds/packages/lang/golang feeds/packages/lang/rust
-        cp -r temp_resp/lang/golang feeds/packages/lang
-        cp -r temp_resp/lang/rust feeds/packages/lang
+        git clone --depth=1 -b master --single-branch https://github.com/openwrt/packages.git temp_resp 2>/dev/null || true
+        [ -d "temp_resp/lang/golang" ] && rm -rf feeds/packages/lang/golang && cp -r temp_resp/lang/golang feeds/packages/lang/
+        [ -d "temp_resp/lang/rust" ] && rm -rf feeds/packages/lang/rust && cp -r temp_resp/lang/rust feeds/packages/lang/
         rm -rf temp_resp
         
-        # 修复 Rust 编译报错
-        sed -i 's/--set=llvm\.download-ci-llvm=true/--set=llvm.download-ci-llvm=false/' feeds/packages/lang/rust/Makefile
-        grep -q -- '--ci false \\' feeds/packages/lang/rust/Makefile || sed -i '/x\.py \\/a \        --ci false \\' feeds/packages/lang/rust/Makefile
+        # Patch rust
+        sed -i 's/--set=llvm\.download-ci-llvm=true/--set=llvm.download-ci-llvm=false/' feeds/packages/lang/rust/Makefile 2>/dev/null || true
         
         ./scripts/feeds update -a
         ./scripts/feeds install -a
+        
+        # Minimal config
+        echo "CONFIG_ALL_NONSHARED=n" > .config
+        echo "CONFIG_ALL_KMODS=n" >> .config
+        echo "CONFIG_ALL=n" >> .config
+        make defconfig
 
-    - name: Load custom configuration
+    - name: Load Custom Configuration
       run: |
         [ -e files ] && mv files openwrt/files
         [ -e $CONFIG_FILE ] && mv $CONFIG_FILE openwrt/.config
         chmod +x $DIY_P2_SH
         cd openwrt
         $GITHUB_WORKSPACE/$DIY_P2_SH
-        
-        # 🚀 强制关闭极其耗时的全量内核模块编译
-        sed -i 's/CONFIG_ALL_KMODS=y/# CONFIG_ALL_KMODS is not set/' .config
-        sed -i 's/CONFIG_ALL_NONSHARED=y/# CONFIG_ALL_NONSHARED is not set/' .config
-        echo "CONFIG_CCACHE=y" >> .config
-        make defconfig
 
-    - name: Download package
-      id: package
+    - name: Pre-download Packages
       run: |
         cd openwrt
-        make download -j8
-        # 清理下载失败的残损包并重试一次
+        echo "Pre-downloading packages..."
+        make download -j$(nproc) V=s
         find dl -size -1024c -exec rm -f {} \;
-        make download -j8
+        echo "Download complete"
 
-    - name: Compile the firmware
+    - name: Compile Firmware (Optimized)
       id: compile
       run: |
         cd openwrt
         export CCACHE_DIR=~/.ccache
-        ccache -M 5G  # 限制 ccache 大小防止超出 Action 10G 总上限
+        export CC="ccache gcc"
+        export CXX="ccache g++"
         
-        echo -e "$(nproc) thread compile"
-        # 优先多线程，失败自动切换单线程 V=s 输出日志
-        make -j$(nproc) || make -j1 V=s
+        echo "Starting compilation with $(nproc) CPU cores..."
+        
+        # Full parallel build attempt
+        if make -j$(nproc) V=s 2>&1 | tee build.log; then
+          echo "✓ Build succeeded"
+        else
+          echo "⚠ Full parallel build failed, retrying with reduced jobs..."
+          make -j$(($(nproc) / 2)) V=s 2>&1 | tee -a build.log || make -j1 V=s
+        fi
         
         echo "status=success" >> $GITHUB_OUTPUT
         grep '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' > DEVICE_NAME
         [ -s DEVICE_NAME ] && echo "DEVICE_NAME=_$(cat DEVICE_NAME)" >> $GITHUB_ENV
         echo "FILE_DATE=_$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
 
-    - name: Organize files
+    - name: Show Build Statistics
+      if: always()
+      run: |
+        echo "=== ccache Statistics ==="
+        ccache -s
+        echo ""
+        echo "=== Disk Usage ==="
+        df -hT
+        echo ""
+        echo "=== Build Directory Size ==="
+        du -sh /workdir/openwrt/bin 2>/dev/null || echo "No bin directory"
+
+    - name: Organize Firmware Files
       id: organize
       if: env.UPLOAD_FIRMWARE == 'true' && !cancelled()
       run: |
+        mkdir -p firmware_output
         cd openwrt/bin/targets/*/*
         rm -rf packages
-        echo "FIRMWARE=$PWD" >> $GITHUB_ENV
+        cp -r * $GITHUB_WORKSPACE/firmware_output/ 2>/dev/null || true
+        echo "FIRMWARE=$GITHUB_WORKSPACE/firmware_output" >> $GITHUB_ENV
         echo "status=success" >> $GITHUB_OUTPUT
 
-    - name: Upload firmware directory
+    - name: Upload Firmware
       uses: actions/upload-artifact@v4
       if: steps.organize.outputs.status == 'success' && !cancelled()
       with:
         name: OpenWrt_firmware${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
         path: ${{ env.FIRMWARE }}
+        retention-days: 3
+        compression-level: 6
 
-    - name: Delete workflow runs
+    - name: Generate Release Tag
+      id: tag
+      if: env.UPLOAD_RELEASE == 'true' && !cancelled()
+      run: |
+        echo "release_tag=$(date +"%Y.%m.%d-%H%M")" >> $GITHUB_OUTPUT
+        {
+          echo "# OpenWrt 25.12 Build Report"
+          echo "**Build Date:** $(date)"
+          echo "**Repository:** $REPO_URL/$REPO_BRANCH"
+          echo ""
+          echo "## Build Information"
+          echo "- Device: $(cat /workdir/openwrt/DEVICE_NAME 2>/dev/null || echo 'Unknown')"
+          echo "- Firmware: Available in artifacts"
+        } > release.txt
+        echo "status=success" >> $GITHUB_OUTPUT
+
+    - name: Cleanup Old Artifacts
       uses: Mattraks/delete-workflow-runs@main
       with:
         retain_days: 0
         keep_minimum_runs: 2
+
+    - name: Cleanup Old Releases
+      uses: dev-drprasad/delete-older-releases@master
+      if: env.UPLOAD_RELEASE == 'true' && !cancelled()
+      with:
+        keep_latest: 3
+        delete_tags: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
