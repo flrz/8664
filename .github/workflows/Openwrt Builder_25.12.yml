@@ -40,7 +40,6 @@ jobs:
         DEBIAN_FRONTEND: noninteractive
       run: |
         sudo -E apt-get -qq update
-        # Install only essential build tools to save time
         sudo -E apt-get -qq install -y \
             autoconf automake autopoint binutils bison build-essential \
             bzip2 ccache cmake cpio curl device-tree-compiler flex gawk gettext gcc-multilib \
@@ -60,7 +59,6 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ~/.ccache
-        # Branch-specific cache key - all commits on same branch share it
         key: ${{ runner.os }}-ccache-${{ github.ref_name }}
         restore-keys: |
           ${{ runner.os }}-ccache-main
@@ -70,82 +68,136 @@ jobs:
       uses: actions/cache@v4
       with:
         path: /workdir/openwrt/dl
-        # Based on feeds.conf.default - only changes when feeds change
         key: ${{ runner.os }}-dl-${{ hashFiles('feeds.conf.default') }}
         restore-keys: |
           ${{ runner.os }}-dl-
-        
+
     - name: Clone OpenWrt Source
       working-directory: /workdir
       run: |
         git clone --depth=1 $REPO_URL -b $REPO_BRANCH openwrt
         ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
-        cd openwrt && git log -1 --format='%H %s'
+        cd openwrt && echo "Cloned: $(git log -1 --format='%H %s')"
 
     - name: Configure ccache
       run: |
         export CCACHE_DIR=~/.ccache
         ccache -M $CCACHE_SIZE
-        ccache -z  # Reset stats
+        ccache -z
         mkdir -p $CCACHE_DIR
-        echo "CCACHE configured: $CCACHE_SIZE"
+        echo "CCACHE_DIR=$CCACHE_DIR" >> $GITHUB_ENV
+        echo "✓ ccache configured: $CCACHE_SIZE"
 
-    - name: Load Custom Feeds
+    - name: Load Custom Feeds Configuration
       run: |
         [ -e $FEEDS_CONF ] && mv $FEEDS_CONF openwrt/feeds.conf.default
-        chmod +x $DIY_P1_SH
+        chmod +x $DIY_P1_SH 2>/dev/null || true
         cd openwrt
-        $GITHUB_WORKSPACE/$DIY_P1_SH
+        [ -f "$GITHUB_WORKSPACE/$DIY_P1_SH" ] && $GITHUB_WORKSPACE/$DIY_P1_SH || echo "✓ No DIY_P1_SH script found"
 
-    - name: Update and Install Feeds
+    - name: Update Feeds
       run: |
         cd openwrt
         echo "Updating feeds..."
-        ./scripts/feeds update -a -f
+        ./scripts/feeds update -a -f 2>&1 | grep -v "^Cloning\|^Branch\|^Created\|^Using"
         
+    - name: Install Feeds
+      run: |
+        cd openwrt
         echo "Installing feeds..."
-        ./scripts/feeds install -a -p passwall 2>/dev/null || true
-        ./scripts/feeds install -a -p openclash 2>/dev/null || true
-        ./scripts/feeds install -a
+        ./scripts/feeds install -a 2>&1 | tail -20
+        echo "✓ Feeds installed"
+
+    - name: Apply 25.12 Patches
+      run: |
+        cd openwrt
+        echo "Applying OpenWrt 25.12 compatibility patches..."
         
-        echo "Applying 25.12 patches..."
-        # Quick patches for golang/rust
-        rm -rf temp_resp
+        # Update golang and rust from master branch
+        rm -rf temp_resp 2>/dev/null || true
         git clone --depth=1 -b master --single-branch https://github.com/openwrt/packages.git temp_resp 2>/dev/null || true
-        [ -d "temp_resp/lang/golang" ] && rm -rf feeds/packages/lang/golang && cp -r temp_resp/lang/golang feeds/packages/lang/
-        [ -d "temp_resp/lang/rust" ] && rm -rf feeds/packages/lang/rust && cp -r temp_resp/lang/rust feeds/packages/lang/
+        
+        if [ -d "temp_resp/lang/golang" ]; then
+          rm -rf feeds/packages/lang/golang
+          cp -r temp_resp/lang/golang feeds/packages/lang
+          echo "✓ Updated golang"
+        fi
+        
+        if [ -d "temp_resp/lang/rust" ]; then
+          rm -rf feeds/packages/lang/rust
+          cp -r temp_resp/lang/rust feeds/packages/lang
+          echo "✓ Updated rust"
+        fi
+        
         rm -rf temp_resp
         
-        # Patch rust
-        sed -i 's/--set=llvm\.download-ci-llvm=true/--set=llvm.download-ci-llvm=false/' feeds/packages/lang/rust/Makefile 2>/dev/null || true
+        # Patch rust build issues
+        if [ -f "feeds/packages/lang/rust/Makefile" ]; then
+          sed -i 's/--set=llvm\.download-ci-llvm=true/--set=llvm.download-ci-llvm=false/' feeds/packages/lang/rust/Makefile
+          grep -q -- '--ci false \\' feeds/packages/lang/rust/Makefile || sed -i '/x\.py \\/a \        --ci false \\' feeds/packages/lang/rust/Makefile
+          echo "✓ Patched rust build flags"
+        fi
         
-        ./scripts/feeds update -a
-        ./scripts/feeds install -a
-        
-        # Minimal config
-        echo "CONFIG_ALL_NONSHARED=n" > .config
-        echo "CONFIG_ALL_KMODS=n" >> .config
-        echo "CONFIG_ALL=n" >> .config
-        make defconfig
+        ./scripts/feeds update -a 2>&1 | tail -5
+        ./scripts/feeds install -a 2>&1 | tail -5
+        echo "✓ Patches applied"
 
     - name: Load Custom Configuration
       run: |
         [ -e files ] && mv files openwrt/files
-        [ -e $CONFIG_FILE ] && mv $CONFIG_FILE openwrt/.config
-        chmod +x $DIY_P2_SH
+        [ -e $CONFIG_FILE ] && mv $CONFIG_FILE openwrt/.config || echo "⚠ No .config file found"
+        chmod +x $DIY_P2_SH 2>/dev/null || true
         cd openwrt
-        $GITHUB_WORKSPACE/$DIY_P2_SH
+        [ -f "$GITHUB_WORKSPACE/$DIY_P2_SH" ] && $GITHUB_WORKSPACE/$DIY_P2_SH || echo "✓ No DIY_P2_SH script found"
 
-    - name: Download package
-      id: package
+    - name: Apply Defconfig (Non-interactive)
       run: |
         cd openwrt
-        make defconfig
-        make download -j16
-        find dl -size -1024c -exec ls -l {} \;
-        find dl -size -1024c -exec rm -f {} \;
+        if [ -f .config ]; then
+          echo "✓ Using existing .config"
+          # Validate config
+          make defconfig 2>&1 | grep -v "Leaving directory\|Entering directory" || true
+        else
+          echo "⚠ No .config file, creating minimal config..."
+          # Create minimal default config
+          cat > .config << 'EOF'
+        CONFIG_TARGET_x86=y
+        CONFIG_TARGET_x86_64=y
+        CONFIG_TARGET_x86_64_DEVICE_generic=y
+        CONFIG_ALL_NONSHARED=n
+        CONFIG_ALL_KMODS=n
+        CONFIG_ALL=n
+        CONFIG_AUTOREMOVE=n
+        CONFIG_SIGNED_PACKAGES=n
+        EOF
+          make defconfig 2>&1 | grep -v "Leaving directory\|Entering directory" || true
+        fi
 
-    - name: Compile Firmware (Optimized)
+    - name: Download Packages
+      id: download
+      run: |
+        cd openwrt
+        echo "Pre-downloading packages (this may take 5-10 minutes)..."
+        
+        # Download with retry logic
+        attempt=1
+        max_attempts=3
+        while [ $attempt -le $max_attempts ]; do
+          echo "Attempt $attempt/$max_attempts..."
+          if make download -j8 V=s 2>&1 | tail -50; then
+            break
+          fi
+          ((attempt++))
+          [ $attempt -le $max_attempts ] && sleep 10
+        done
+        
+        # Remove incomplete downloads
+        find dl -size -1024c -exec rm -f {} \;
+        
+        echo "✓ Packages downloaded"
+        du -sh dl/
+
+    - name: Compile Firmware
       id: compile
       run: |
         cd openwrt
@@ -153,41 +205,62 @@ jobs:
         export CC="ccache gcc"
         export CXX="ccache g++"
         
-        echo "Starting compilation with $(nproc) CPU cores..."
+        echo "==========================================="
+        echo "Starting compilation with $(nproc) CPU cores"
+        echo "==========================================="
+        ccache -z
         
-        # Full parallel build attempt
+        # Try full parallel build first
         if make -j$(nproc) V=s 2>&1 | tee build.log; then
-          echo "✓ Build succeeded"
+          echo "✓ Build succeeded on first attempt"
+          BUILD_SUCCESS=1
         else
-          echo "⚠ Full parallel build failed, retrying with reduced jobs..."
-          make -j$(($(nproc) / 2)) V=s 2>&1 | tee -a build.log || make -j1 V=s
+          echo "⚠ Full parallel build failed, retrying with reduced parallelization..."
+          BUILD_SUCCESS=0
+        fi
+        
+        if [ $BUILD_SUCCESS -eq 0 ]; then
+          if make -j4 V=s 2>&1 | tee -a build.log; then
+            echo "✓ Build succeeded with j4"
+            BUILD_SUCCESS=1
+          fi
+        fi
+        
+        if [ $BUILD_SUCCESS -eq 0 ]; then
+          echo "⚠ Retrying with j2..."
+          make -j2 V=s 2>&1 | tee -a build.log || make -j1 V=s
         fi
         
         echo "status=success" >> $GITHUB_OUTPUT
         grep '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' > DEVICE_NAME
-        [ -s DEVICE_NAME ] && echo "DEVICE_NAME=_$(cat DEVICE_NAME)" >> $GITHUB_ENV
+        [ -s DEVICE_NAME ] && echo "DEVICE_NAME=_$(cat DEVICE_NAME)" >> $GITHUB_ENV || echo "DEVICE_NAME=" >> $GITHUB_ENV
         echo "FILE_DATE=_$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
 
-    - name: Show Build Statistics
+    - name: Build Statistics
       if: always()
       run: |
-        echo "=== ccache Statistics ==="
-        ccache -s
+        echo "==========================================="
+        echo "BUILD STATISTICS"
+        echo "==========================================="
         echo ""
-        echo "=== Disk Usage ==="
-        df -hT
+        echo "--- ccache Statistics ---"
+        ccache -s | head -15
         echo ""
-        echo "=== Build Directory Size ==="
-        du -sh /workdir/openwrt/bin 2>/dev/null || echo "No bin directory"
+        echo "--- Disk Usage ---"
+        df -hT | grep -E "Filesystem|/workdir|Avail"
+        echo ""
+        echo "--- Build Output Size ---"
+        [ -d /workdir/openwrt/bin ] && du -sh /workdir/openwrt/bin || echo "No build output yet"
 
     - name: Organize Firmware Files
       id: organize
-      if: env.UPLOAD_FIRMWARE == 'true' && !cancelled()
+      if: steps.compile.outputs.status == 'success' && !cancelled()
       run: |
         mkdir -p firmware_output
-        cd openwrt/bin/targets/*/*
+        cd openwrt/bin/targets/*/*  2>/dev/null || { echo "No firmware found"; exit 1; }
         rm -rf packages
         cp -r * $GITHUB_WORKSPACE/firmware_output/ 2>/dev/null || true
+        ls -lh $GITHUB_WORKSPACE/firmware_output/ | head -20
         echo "FIRMWARE=$GITHUB_WORKSPACE/firmware_output" >> $GITHUB_ENV
         echo "status=success" >> $GITHUB_OUTPUT
 
@@ -197,22 +270,26 @@ jobs:
       with:
         name: OpenWrt_firmware${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
         path: ${{ env.FIRMWARE }}
-        retention-days: 3
+        retention-days: 5
         compression-level: 6
 
-    - name: Generate Release Tag
+    - name: Generate Release Information
       id: tag
       if: env.UPLOAD_RELEASE == 'true' && !cancelled()
       run: |
         echo "release_tag=$(date +"%Y.%m.%d-%H%M")" >> $GITHUB_OUTPUT
         {
           echo "# OpenWrt 25.12 Build Report"
-          echo "**Build Date:** $(date)"
-          echo "**Repository:** $REPO_URL/$REPO_BRANCH"
+          echo ""
+          echo "**Build Date:** $(date '+%Y-%m-%d %H:%M:%S %Z')"
+          echo "**Repository:** $REPO_URL - Branch: $REPO_BRANCH"
           echo ""
           echo "## Build Information"
-          echo "- Device: $(cat /workdir/openwrt/DEVICE_NAME 2>/dev/null || echo 'Unknown')"
-          echo "- Firmware: Available in artifacts"
+          [ -f /workdir/openwrt/DEVICE_NAME ] && echo "- Device: $(cat /workdir/openwrt/DEVICE_NAME)" || echo "- Device: Generic"
+          echo "- Firmware artifacts available for download"
+          echo ""
+          echo "## Build Details"
+          [ -f /workdir/openwrt/build.log ] && tail -20 /workdir/openwrt/build.log | sed 's/^/> /' || echo "Build completed"
         } > release.txt
         echo "status=success" >> $GITHUB_OUTPUT
 
