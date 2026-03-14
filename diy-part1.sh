@@ -14,7 +14,9 @@
 #sed -i "/helloworld/d" "feeds.conf.default"
 #rm -rf feeds/packages/lang/golang
 #git clone https://github.com/sbwml/packages_lang_golang -b 26.x feeds/packages/lang/golang
-
+# 3. 下載最新 Meta 核心 (針對 x86_64)
+CORE_URL=$(curl -sL https://api.github.com | grep "browser_download_url" | grep "linux-amd64-v" | grep ".gz" | head -n 1 | cut -d '"' -f 4)
+          
 # Add a feed source
 sed -i '1i src-git flrz https://github.com/flrz/openwrt-packages' feeds.conf.default
 sed -i '2i src-git openclash https://github.com/vernesong/OpenClash' feeds.conf.default
