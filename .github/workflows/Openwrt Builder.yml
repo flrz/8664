@@ -159,7 +159,7 @@ jobs:
         cd openwrt
         [ -f "$GITHUB_WORKSPACE/$DIY_P2_SH" ] && $GITHUB_WORKSPACE/$DIY_P2_SH || echo "✓ No DIY_P2_SH script found"
 
-   - name: Download OpenClash Meta Core
+    - name: Download OpenClash Meta Core
       run: |
         # 1. 確保目錄存在 (使用絕對路徑防止出錯)
         CORE_DIR="openwrt/package/feeds/openclash/luci-app-openclash/root/etc/openclash/core"
