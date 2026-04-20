@@ -1,7 +1,10 @@
 # ============================================================
 # OpenWrt 25.12 x86_64 主路由配置 - 通用 + 强化安全版
-# 官方默认 + OpenVPN + WireGuard + OpenClash + Passwall2 + Argon主题
+# 官方默认 + OpenVPN + WireGuard + OpenClash + Passwall2 + Argon主题 + AdGuard Home
 # 作为主路由（完整 WAN/DHCP/IPv6/防火墙/SQM）
+# ============================================================
+# 注意：默认时区（Asia/Shanghai CST-8）请通过 GitHub 仓库中创建 files/etc/config/system 文件实现
+#       （具体内容见我上条回复，或直接复制我之前提供的 system 文件）
 # ============================================================
 
 # ===== 目标平台配置 =====
@@ -58,28 +61,33 @@ CONFIG_PACKAGE_kmod-virtio-pci=y
 CONFIG_PACKAGE_kmod-tun=y
 CONFIG_PACKAGE_kmod-virtio-balloon=y
 CONFIG_PACKAGE_qemu-ga=y
+
 # 磁盘驱动
 CONFIG_PACKAGE_kmod-scsi-core=y
 CONFIG_PACKAGE_kmod-scsi-generic=y
 CONFIG_PACKAGE_kmod-libata=y
 CONFIG_PACKAGE_kmod-ata-piix=y
-# 显示驱动（保留 Intel i915）
+
+# 显示驱动
 CONFIG_PACKAGE_kmod-drm-i915=y
+
 # USB 支持
 CONFIG_PACKAGE_kmod-usb-core=y
 CONFIG_PACKAGE_kmod-usb-ohci=y
 CONFIG_PACKAGE_kmod-usb-ehci=y
 CONFIG_PACKAGE_kmod-usb-xhci=y
 CONFIG_PACKAGE_kmod-usb-storage=y
+
 # 文件系统
 CONFIG_PACKAGE_block-mount=y
 CONFIG_PACKAGE_kmod-fs-ext4=y
 
-# ===== 官方防火墙（firewall4 + nftables，主路由必须） =====
+# ===== 官方防火墙（firewall4 + nftables） =====
 CONFIG_PACKAGE_firewall4=y
 CONFIG_PACKAGE_nftables=y
 CONFIG_PACKAGE_nftables-json=y
 CONFIG_PACKAGE_luci-app-firewall=y
+
 # nftables 内核模块
 CONFIG_PACKAGE_kmod-nft-core=y
 CONFIG_PACKAGE_kmod-nft-fib=y
@@ -88,7 +96,7 @@ CONFIG_PACKAGE_kmod-nft-offload=y
 CONFIG_PACKAGE_kmod-nf-offload=y
 # CONFIG_PACKAGE_firewall is not set
 
-# ===== DHCP/DNS（主路由完整保留） =====
+# ===== DHCP/DNS =====
 CONFIG_PACKAGE_dnsmasq-full=y
 CONFIG_PACKAGE_dnsmasq_full_auth=y
 CONFIG_PACKAGE_dnsmasq_full_conntrack=y
@@ -104,7 +112,7 @@ CONFIG_PACKAGE_adguardhome=y
 CONFIG_PACKAGE_luci-app-adguardhome=y
 CONFIG_PACKAGE_luci-i18n-adguardhome-zh-cn=y
 
-# ===== UPnP（主路由推荐添加） =====
+# ===== UPnP =====
 CONFIG_PACKAGE_miniupnpd=y
 CONFIG_PACKAGE_luci-app-upnp=y
 CONFIG_PACKAGE_luci-i18n-upnp-zh-cn=y
@@ -116,12 +124,12 @@ CONFIG_PACKAGE_e2fsprogs=y
 CONFIG_PACKAGE_mkf2fs=y
 CONFIG_PACKAGE_resize2fs=y
 
-# ===== IPv6 支持（主路由完整） =====
+# ===== IPv6 支持 =====
 CONFIG_IPV6=y
 CONFIG_PACKAGE_odhcp6c=y
 CONFIG_PACKAGE_odhcpd-ipv6only=y
 
-# ===== PPP 拨号（主路由必须） =====
+# ===== PPP 拨号 =====
 CONFIG_PACKAGE_ppp=y
 CONFIG_PACKAGE_ppp-mod-pppoe=y
 
@@ -170,6 +178,7 @@ CONFIG_PACKAGE_openclash=y
 CONFIG_PACKAGE_luci-app-openclash=y
 CONFIG_PACKAGE_clash=y
 CONFIG_PACKAGE_clash-meta=y
+
 # OpenClash 依赖
 CONFIG_PACKAGE_bash=y
 CONFIG_PACKAGE_coreutils=y
@@ -179,19 +188,19 @@ CONFIG_PACKAGE_jsonfilter=y
 CONFIG_PACKAGE_resolveip=y
 CONFIG_PACKAGE_gawk=y
 
-# ===== Passwall =====
+# ===== Passwall2 =====
 CONFIG_PACKAGE_luci-app-passwall2=y
 CONFIG_PACKAGE_luci-app-passwall_Nftables_Transparent_Proxy=y
 CONFIG_PACKAGE_luci-i18n-passwall2-zh-cn=y
 
-# ===== 核心組件 (Binaries) =====
+# ===== 核心组件 =====
 CONFIG_PACKAGE_xray-core=y
 CONFIG_PACKAGE_sing-box=y
 CONFIG_PACKAGE_chinadns-ng=y
 CONFIG_PACKAGE_dns2socks=y
 CONFIG_PACKAGE_dns2tcp=y
 
-# ===== 网络优化（主路由推荐） =====
+# ===== 网络优化 =====
 CONFIG_PACKAGE_kmod-tcp-bbr=y
 CONFIG_PACKAGE_kmod-nft-tproxy=y
 CONFIG_PACKAGE_kmod-sched-core=y
@@ -267,6 +276,7 @@ CONFIG_KERNEL_SWAP=y
 CONFIG_KERNEL_SYN_COOKIES=y
 CONFIG_KERNEL_DEFAULT_TCP_CONG="bbr"
 CONFIG_KERNEL_PRINTK=y
+
 # 内核安全强化
 CONFIG_KERNEL_STACKPROTECTOR=y
 CONFIG_KERNEL_STACKPROTECTOR_STRONG=y
