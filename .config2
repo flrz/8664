@@ -1,6 +1,6 @@
 # ============================================================
 # OpenWrt 25.12 x86_64 主路由配置 - 通用 + 强化安全版
-# 官方默认 + OpenVPN + WireGuard + OpenClash + Passwall + Argon主题
+# 官方默认 + OpenVPN + WireGuard + OpenClash + Passwall2 + Argon主题
 # 作为主路由（完整 WAN/DHCP/IPv6/防火墙/SQM）
 # ============================================================
 
