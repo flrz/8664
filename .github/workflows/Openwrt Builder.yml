@@ -26,7 +26,10 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       actions: write      
+      id-token: write
       contents: write
+      pull-requests: write
+      issues: write
 
     steps:
     - name: Checkout
