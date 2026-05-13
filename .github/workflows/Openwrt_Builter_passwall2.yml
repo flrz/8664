@@ -1,4 +1,4 @@
-name: OpenWrt Builder with passwall2
+name: OpenWrt Builder with openclash
 
 on:
   repository_dispatch:
