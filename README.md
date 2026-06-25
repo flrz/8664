@@ -361,8 +361,3 @@ ping 8.8.8.8
 - [vernesong/OpenClash](https://github.com/vernesong/OpenClash)
 - 所有参与的开源社区
 
----
-
-**最后更新**: 2026-06-25
-
-**⭐ 如果对您有帮助，请给个 Star！**
