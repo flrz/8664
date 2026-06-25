@@ -1,0 +1,9 @@
+# 防止意外提交敏感文件
+*.swp
+*.swo
+*~
+.env
+.env.local
+/build/
+/tmp/
+/feeds/
