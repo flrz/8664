@@ -353,14 +353,6 @@ ping 8.8.8.8
 
 ---
 
-## 📞 联系方式
-
-- **作者**: flrz
-- **GitHub**: [@flrz](https://github.com/flrz)
-- **问题**: 提交 [Issue](https://github.com/flrz/8664/issues)
-
----
-
 ## 致谢
 
 感谢以下项目和开发者的贡献：
