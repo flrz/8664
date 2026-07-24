@@ -602,22 +602,22 @@ jobs:
 
 ## Information
 
-- Branch: $REPO_BRANCH
+    - Branch: $REPO_BRANCH
 
-- Repository: $REPO_URL
+    - Repository: $REPO_URL
 
-- Device: ${{ env.DEVICE_NAME }}
+    - Device: ${{ env.DEVICE_NAME }}
 
-- Build Time: $(date)
+    - Build Time: $(date)
 
 
 
 ## Files
 
-Firmware files and SHA256 checksums are included.
+     Firmware files and SHA256 checksums are included.
 
 
-EOF
+      EOF
 
 
 
