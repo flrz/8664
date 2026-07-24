@@ -34,31 +34,31 @@ if ! cp feeds.conf.default feeds.conf.default.backup; then
     error_exit "Failed to backup feeds.conf.default"
 fi
 
+# 使用追加方式添加新 feed（推荐方式）
+# 这样避免了 sed 行号变化的问题
+
 # 添加 flrz feed
-if sed -i '1i src-git flrz https://github.com/flrz/openwrt-packages' feeds.conf.default; then
-    success_msg "Added flrz feed source"
-else
+echo "src-git flrz https://github.com/flrz/openwrt-packages" >> feeds.conf.default && \
+    success_msg "Added flrz feed source" || \
     error_exit "Failed to add flrz feed source"
-fi
 
 # 添加 OpenClash feed
-if sed -i '2i src-git openclash https://github.com/vernesong/OpenClash' feeds.conf.default; then
-    success_msg "Added OpenClash feed source"
-else
+echo "src-git openclash https://github.com/vernesong/OpenClash" >> feeds.conf.default && \
+    success_msg "Added OpenClash feed source" || \
     error_exit "Failed to add OpenClash feed source"
-fi
 
-# 其他可选 feed（已注释）
-# if sed -i '1i src-git kenzo https://github.com/kenzok8/openwrt-packages' feeds.conf.default; then
-#     success_msg "Added kenzo feed source"
-# else
-#     error_exit "Failed to add kenzo feed source"
-# fi
-#
-# if sed -i '2i src-git small https://github.com/kenzok8/small' feeds.conf.default; then
-#     success_msg "Added small feed source"
-# else
-#     error_exit "Failed to add small feed source"
-# fi
+# 可选：添加其他流行的 feed
+# echo "src-git helloworld https://github.com/fw876/helloworld.git" >> feeds.conf.default
+# echo "src-git passwall https://github.com/xiaorouji/openwrt-passwall.git;main" >> feeds.conf.default
 
-success_msg "diy-part1.sh completed successfully"
+# 显示最终的 feeds 配置
+echo ""
+echo "=========================================="
+echo "Final feeds configuration:"
+echo "=========================================="
+cat feeds.conf.default
+echo "=========================================="
+
+success_msg "DIY Part1 completed successfully"
+
+
