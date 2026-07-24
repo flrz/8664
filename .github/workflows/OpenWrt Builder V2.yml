@@ -1,0 +1,238 @@
+
+name: OpenWrt Builder V2
+
+on:
+  repository_dispatch:
+  workflow_dispatch:
+
+env:
+  REPO_URL: https://github.com/openwrt/openwrt
+  REPO_BRANCH: openwrt-25.12
+
+  FEEDS_CONF: feeds.conf.default
+  CONFIG_FILE: .config
+
+  DIY_P1_SH: diy-part1.sh
+  DIY_P2_SH: diy-part2.sh
+
+  UPLOAD_RELEASE: true
+
+  TZ: Asia/Shanghai
+  CCACHE_SIZE: 4G
+
+
+jobs:
+
+  build:
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      actions: write
+
+
+    steps:
+
+    - name: Checkout
+      uses: actions/checkout@v5
+
+
+    - name: Free Disk Space
+      run: |
+        echo "Cleaning runner disk..."
+
+        sudo rm -rf \
+          /usr/share/dotnet \
+          /usr/local/lib/android \
+          /opt/ghc \
+          /usr/local/.rustup
+
+        sudo docker image prune -af
+
+        df -h
+
+
+
+    - name: Install Build Dependencies
+      env:
+        DEBIAN_FRONTEND: noninteractive
+
+      run: |
+
+        sudo apt-get update
+
+        sudo apt-get install -y \
+          build-essential \
+          gcc \
+          g++ \
+          git \
+          curl \
+          wget \
+          rsync \
+          unzip \
+          ccache \
+          python3 \
+          python3-pip \
+          python3-ply \
+          python3-docutils \
+          flex \
+          bison \
+          gawk \
+          gettext \
+          patch \
+          pkgconf \
+          cmake \
+          ninja-build \
+          libncurses-dev \
+          zlib1g-dev \
+          libssl-dev \
+          libelf-dev \
+          qemu-utils \
+          squashfs-tools \
+          zstd
+
+        sudo apt-get clean
+
+
+
+    - name: Restore ccache
+
+      uses: actions/cache@v5
+
+      with:
+
+        path: ~/.ccache
+
+        key: |
+          ${{ runner.os }}-ccache-${{ env.REPO_BRANCH }}
+
+        restore-keys: |
+          ${{ runner.os }}-ccache-
+
+
+
+    - name: Configure ccache
+
+      run: |
+
+        mkdir -p ~/.ccache
+
+        ccache -M $CCACHE_SIZE
+
+        ccache -z
+
+        echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
+
+
+
+    - name: Prepare Work Directory
+
+      run: |
+
+        sudo mkdir -p /workdir
+
+        sudo chown $USER:$GROUPS /workdir
+
+
+
+    - name: Clone OpenWrt Source
+
+      working-directory: /workdir
+
+      run: |
+
+        git clone \
+          --depth=1 \
+          -b $REPO_BRANCH \
+          $REPO_URL \
+          openwrt
+
+
+        cd openwrt
+
+        echo "OpenWrt commit:"
+        git log -1 --oneline
+
+
+
+    - name: Restore OpenWrt dl Cache
+
+      uses: actions/cache@v5
+
+      with:
+
+        path: /workdir/openwrt/dl
+
+        key: |
+          ${{ runner.os }}-dl-${{ hashFiles('feeds.conf.default') }}
+
+        restore-keys: |
+          ${{ runner.os }}-dl-
+
+
+    - name: Prepare Feeds Configuration
+
+      run: |
+
+        cd /workdir/openwrt
+
+
+        if [ -f "$GITHUB_WORKSPACE/$FEEDS_CONF" ]; then
+
+          echo "Using custom feeds.conf.default"
+
+          cp \
+            "$GITHUB_WORKSPACE/$FEEDS_CONF" \
+            feeds.conf.default
+
+        fi
+
+
+
+    - name: Update Feeds
+
+      run: |
+
+        cd /workdir/openwrt
+
+
+        echo "::group::Updating feeds"
+
+        ./scripts/feeds update -a
+
+        echo "::endgroup::"
+
+
+
+    - name: Apply DIY Part1
+
+      run: |
+
+        cd /workdir/openwrt
+
+        if [ -f "$GITHUB_WORKSPACE/$DIY_P1_SH" ]; then
+
+          chmod +x "$GITHUB_WORKSPACE/$DIY_P1_SH"
+
+          echo "Running DIY Part1"
+
+          "$GITHUB_WORKSPACE/$DIY_P1_SH"
+
+        else
+
+          echo "No DIY Part1 script"
+
+        fi
+
+
+
+    - name: Apply OpenWrt 25.12 Compatibility Patch
+
+      run: |
+
+        cd /workdir/openwrt
+
+
+        echo "::group::Applying patches"](#)
+
