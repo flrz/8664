@@ -1,4 +1,3 @@
-
 name: OpenWrt Builder V2
 
 on:
@@ -233,6 +232,124 @@ jobs:
 
         cd /workdir/openwrt
 
+        echo "::group::Applying patches"
 
-        echo "::group::Applying patches"](#)
-
+        echo "::endgroup::"
+
+
+
+    - name: Install Feeds
+
+      run: |
+
+        cd /workdir/openwrt
+
+        ./scripts/feeds install -a
+
+
+
+    - name: Prepare Build Configuration
+
+      run: |
+
+        cd /workdir/openwrt
+
+        if [ -f "$GITHUB_WORKSPACE/$CONFIG_FILE" ]; then
+
+          echo "Using custom .config"
+
+          cp "$GITHUB_WORKSPACE/$CONFIG_FILE" .config
+
+        else
+
+          echo "No custom .config found"
+
+        fi
+
+
+
+    - name: Apply DIY Part2
+
+      run: |
+
+        cd /workdir/openwrt
+
+        if [ -f "$GITHUB_WORKSPACE/$DIY_P2_SH" ]; then
+
+          chmod +x "$GITHUB_WORKSPACE/$DIY_P2_SH"
+
+          echo "Running DIY Part2"
+
+          "$GITHUB_WORKSPACE/$DIY_P2_SH"
+
+        else
+
+          echo "No DIY Part2 script"
+
+        fi
+
+
+
+    - name: Generate Build Configuration
+
+      run: |
+
+        cd /workdir/openwrt
+
+        make defconfig
+
+
+
+    - name: Download Build Dependencies
+
+      run: |
+
+        cd /workdir/openwrt
+
+        make download -j8
+
+
+
+    - name: Build OpenWrt
+
+      run: |
+
+        cd /workdir/openwrt
+
+        echo "Starting build..."
+
+        make -j$(nproc) V=s 2>&1 | tee build.log
+
+        echo "Build completed"
+
+
+
+    - name: Check Build Results
+
+      if: always()
+
+      run: |
+
+        cd /workdir/openwrt
+
+        echo "Build artifacts:"
+
+        ls -lh bin/targets/x86/64/ 2>/dev/null || echo "No build artifacts found"
+
+
+
+    - name: Upload Release Assets
+
+      if: env.UPLOAD_RELEASE == 'true' && success()
+
+      uses: softprops/action-gh-release@v1
+
+      with:
+
+        files: /workdir/openwrt/bin/targets/x86/64/*
+
+        tag_name: OpenWrt-${{ env.REPO_BRANCH }}-${{ github.run_number }}
+
+      env:
+
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
