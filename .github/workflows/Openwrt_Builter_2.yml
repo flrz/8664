@@ -346,11 +346,11 @@ jobs:
 
           cat > .config << EOF
 
-CONFIG_TARGET_x86=y
-CONFIG_TARGET_x86_64=y
-CONFIG_TARGET_x86_64_DEVICE_generic=y
+          CONFIG_TARGET_x86=y
+          CONFIG_TARGET_x86_64=y
+          CONFIG_TARGET_x86_64_DEVICE_generic=y
 
-EOF
+          EOF
 
         fi
 
