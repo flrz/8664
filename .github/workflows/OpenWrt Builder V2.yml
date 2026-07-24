@@ -11,7 +11,7 @@ env:
   FEEDS_CONF: feeds.conf.default
   CONFIG_FILE: .config
 
-  DIY_P1_SH: diy-part1.sh
+  #DIY_P1_SH: diy-part1.sh
   DIY_P2_SH: diy-part2.sh
 
   UPLOAD_RELEASE: true
@@ -204,25 +204,25 @@ jobs:
 
 
 
-    - name: Apply DIY Part1
+    #- name: Apply DIY Part1
 
-      run: |
+      #run: |
 
-        cd /workdir/openwrt
+        #cd /workdir/openwrt
 
-        if [ -f "$GITHUB_WORKSPACE/$DIY_P1_SH" ]; then
+        #if [ -f "$GITHUB_WORKSPACE/$DIY_P1_SH" ]; then
 
-          chmod +x "$GITHUB_WORKSPACE/$DIY_P1_SH"
+          #chmod +x "$GITHUB_WORKSPACE/$DIY_P1_SH"
 
-          echo "Running DIY Part1"
+          #echo "Running DIY Part1"
 
-          "$GITHUB_WORKSPACE/$DIY_P1_SH"
+          #"$GITHUB_WORKSPACE/$DIY_P1_SH"
 
-        else
+        #else
 
-          echo "No DIY Part1 script"
+          #echo "No DIY Part1 script"
 
-        fi
+        #fi
 
 
 
