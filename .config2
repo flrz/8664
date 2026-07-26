@@ -1,10 +1,7 @@
 # ============================================================
-# OpenWrt 25.12 x86_64 主路由配置 - 通用 + 强化安全版
-# 官方默认 + OpenVPN + WireGuard + OpenClash + Passwall2 + Argon主题 + AdGuard Home
-# 作为主路由（完整 WAN/DHCP/IPv6/防火墙/SQM）
-# ============================================================
-# 注意：默认时区（Asia/Shanghai CST-8）请通过 GitHub 仓库中创建 files/etc/config/system 文件实现
-#       （具体内容见我上条回复，或直接复制我之前提供的 system 文件）
+# OpenWrt 25.12 x86_64 Build Configuration - 双代理+AGH全能兼容版
+# 特性：同时包含 PassWall + OpenClash + AdGuard Home
+# 适用：虚拟机 (Proxmox VE / ESXi / VMware) + 物理工控机/软路由
 # ============================================================
 
 # ===== 目标平台配置 =====
@@ -24,17 +21,17 @@ CONFIG_GRUB_EFI_IMAGES=y
 CONFIG_GRUB_CONSOLE=y
 CONFIG_GRUB_BAUDRATE=115200
 CONFIG_GRUB_FLOWCONTROL=y
-CONFIG_GRUB_TIMEOUT=5
-CONFIG_GRUB_TITLE="OpenWrt 25.12 Enhanced Security Main Router"
-CONFIG_TARGET_KERNEL_PARTSIZE=256
-CONFIG_TARGET_ROOTFS_PARTSIZE=1024
+CONFIG_GRUB_TIMEOUT=3
+CONFIG_GRUB_TITLE="OpenWrt 25.12 Hardened Edition (Dual-Proxy + AGH)"
+CONFIG_TARGET_KERNEL_PARTSIZE=512
+CONFIG_TARGET_ROOTFS_PARTSIZE=4096
 
-# ===== 包管理器（25.12 官方 apk） =====
-CONFIG_PACKAGE_apk-openssl=y
+# ===== 包管理器（25.12 官方 apk 架构） =====
+CONFIG_USE_APK=y
+CONFIG_PACKAGE_apk-mbedtls=y
 CONFIG_PACKAGE_luci-app-package-manager=y
-# CONFIG_PACKAGE_opkg is not set
 
-# ===== 基础系统包 =====
+# ===== 基础系统与底层加密库 =====
 CONFIG_PACKAGE_base-files=y
 CONFIG_PACKAGE_ca-bundle=y
 CONFIG_PACKAGE_ca-certificates=y
@@ -42,144 +39,106 @@ CONFIG_PACKAGE_coreutils-sort=y
 CONFIG_PACKAGE_dropbear=y
 CONFIG_PACKAGE_intel-microcode=y
 CONFIG_PACKAGE_iucode-tool=y
-CONFIG_PACKAGE_libopenssl=y
-CONFIG_PACKAGE_libopenssl-conf=y
 CONFIG_PACKAGE_libuci=y
-CONFIG_PACKAGE_libustream-openssl=y
 CONFIG_PACKAGE_mtd=y
 CONFIG_PACKAGE_uci=y
 
-# ===== 网络驱动（通用：虚拟机 + 主流物理机） =====
+# PassWall与OpenClash公用的关键基础加密库（切勿禁用 libopenssl）
+CONFIG_PACKAGE_libopenssl=y
+CONFIG_PACKAGE_libustream-mbedtls=y
+CONFIG_PACKAGE_libmbedtls=y
+CONFIG_PACKAGE_mbedtls-utils=y
+
+# ===== 网络与虚拟化驱动 =====
+# 物理网卡驱动
 CONFIG_PACKAGE_kmod-e1000=y
 CONFIG_PACKAGE_kmod-e1000e=y
 CONFIG_PACKAGE_kmod-igb=y
 CONFIG_PACKAGE_kmod-igc=y
 CONFIG_PACKAGE_kmod-r8169=y
+CONFIG_PACKAGE_kmod-bnx2x=y
+
+# 虚拟化网卡 & 硬件增强工具
 CONFIG_PACKAGE_kmod-vmxnet3=y
 CONFIG_PACKAGE_kmod-virtio-net=y
 CONFIG_PACKAGE_kmod-virtio-pci=y
 CONFIG_PACKAGE_kmod-tun=y
 CONFIG_PACKAGE_kmod-virtio-balloon=y
 CONFIG_PACKAGE_qemu-ga=y
+CONFIG_PACKAGE_open-vm-tools=y
 
-# 磁盘驱动
+# 磁盘与硬件总线驱动
 CONFIG_PACKAGE_kmod-scsi-core=y
 CONFIG_PACKAGE_kmod-scsi-generic=y
 CONFIG_PACKAGE_kmod-libata=y
 CONFIG_PACKAGE_kmod-ata-piix=y
-
-# 显示驱动
-CONFIG_PACKAGE_kmod-drm-i915=y
-
-# USB 支持
 CONFIG_PACKAGE_kmod-usb-core=y
-CONFIG_PACKAGE_kmod-usb-ohci=y
-CONFIG_PACKAGE_kmod-usb-ehci=y
 CONFIG_PACKAGE_kmod-usb-xhci=y
 CONFIG_PACKAGE_kmod-usb-storage=y
-
-# 文件系统
 CONFIG_PACKAGE_block-mount=y
 CONFIG_PACKAGE_kmod-fs-ext4=y
 
-# ===== 官方防火墙（firewall4 + nftables） =====
+# ===== 防火墙 (firewall4 + nftables) =====
 CONFIG_PACKAGE_firewall4=y
 CONFIG_PACKAGE_nftables=y
 CONFIG_PACKAGE_nftables-json=y
 CONFIG_PACKAGE_luci-app-firewall=y
-
-# nftables 内核模块
 CONFIG_PACKAGE_kmod-nft-core=y
 CONFIG_PACKAGE_kmod-nft-fib=y
 CONFIG_PACKAGE_kmod-nft-nat=y
 CONFIG_PACKAGE_kmod-nft-offload=y
 CONFIG_PACKAGE_kmod-nf-offload=y
-# CONFIG_PACKAGE_firewall is not set
 
-# ===== DHCP/DNS =====
+# ===== DHCP / DNS 基础服务 =====
 CONFIG_PACKAGE_dnsmasq-full=y
 CONFIG_PACKAGE_dnsmasq_full_auth=y
 CONFIG_PACKAGE_dnsmasq_full_conntrack=y
 CONFIG_PACKAGE_dnsmasq_full_dhcp=y
 CONFIG_PACKAGE_dnsmasq_full_dhcpv6=y
 CONFIG_PACKAGE_dnsmasq_full_dnssec=y
-CONFIG_PACKAGE_dnsmasq_full_ipset=y
+CONFIG_PACKAGE_dnsmasq_full_nftset=y
 CONFIG_PACKAGE_dnsmasq_full_noid=y
-CONFIG_PACKAGE_dnsmasq_full_tftp=y
 
-# ===== AdGuard Home（已替换 adblock-fast） =====
-CONFIG_PACKAGE_adguardhome=y
-CONFIG_PACKAGE_luci-app-adguardhome=y
-CONFIG_PACKAGE_luci-i18n-adguardhome-zh-cn=y
-
-# ===== UPnP =====
-CONFIG_PACKAGE_miniupnpd=y
-CONFIG_PACKAGE_luci-app-upnp=y
-CONFIG_PACKAGE_luci-i18n-upnp-zh-cn=y
-
-# ===== 分区与磁盘工具 =====
-CONFIG_PACKAGE_partx-utils=y
-CONFIG_PACKAGE_blkid=y
-CONFIG_PACKAGE_e2fsprogs=y
-CONFIG_PACKAGE_mkf2fs=y
-CONFIG_PACKAGE_resize2fs=y
-
-# ===== IPv6 支持 =====
+# ===== IPv6 与 拨号 =====
 CONFIG_IPV6=y
+CONFIG_HAVE_IPV6=y
+CONFIG_KERNEL_IPV6=y
 CONFIG_PACKAGE_odhcp6c=y
 CONFIG_PACKAGE_odhcpd-ipv6only=y
-
-# ===== PPP 拨号 =====
 CONFIG_PACKAGE_ppp=y
 CONFIG_PACKAGE_ppp-mod-pppoe=y
 
-# ===== OpenVPN =====
-CONFIG_PACKAGE_openvpn-openssl=y
-CONFIG_PACKAGE_openvpn-easy-rsa=y
-CONFIG_PACKAGE_luci-app-openvpn=y
-
-# ===== WireGuard =====
+# ===== VPN 通道 =====
 CONFIG_PACKAGE_kmod-wireguard=y
 CONFIG_PACKAGE_wireguard-tools=y
 CONFIG_PACKAGE_luci-app-wireguard=y
 
-# ===== OpenSSL 强化 =====
-CONFIG_OPENSSL_WITH_TLS13=y
-CONFIG_OPENSSL_WITH_CAMELLIA=y
-CONFIG_OPENSSL_WITH_ARIA=y
-CONFIG_OPENSSL_WITH_CHACHA_POLY1305=y
-CONFIG_OPENSSL_WITH_PSK=y
-# CONFIG_OPENSSL_WITH_WEAK_SSL_CIPHERS is not set
-CONFIG_PACKAGE_openssl-util=y
-
-# ===== 系统库 =====
-CONFIG_PACKAGE_libubox=y
-CONFIG_PACKAGE_libubus=y
-CONFIG_PACKAGE_libblobmsg-json=y
-CONFIG_PACKAGE_libcurl=y
-CONFIG_PACKAGE_libev=y
-CONFIG_PACKAGE_libsodium=y
-
-# ===== LuCI 基础 =====
+# ===== LuCI 界面与主题 =====
 CONFIG_PACKAGE_luci=y
 CONFIG_PACKAGE_luci-base=y
-CONFIG_PACKAGE_luci-ssl-openssl=y
+CONFIG_PACKAGE_luci-ssl-mbedtls=y
 CONFIG_PACKAGE_luci-mod-admin-full=y
 CONFIG_PACKAGE_luci-theme-bootstrap=y
-CONFIG_PACKAGE_luci-lib-ip=y
-CONFIG_PACKAGE_luci-lib-jsonc=y
-
-# ===== Argon 主题 =====
 CONFIG_PACKAGE_luci-theme-argon=y
 CONFIG_PACKAGE_luci-app-argon-config=y
 
-# ===== OpenClash =====
+# ===== PassWall 核心与依赖组件 =====
+CONFIG_PACKAGE_passwall=y
+CONFIG_PACKAGE_luci-app-passwall=y
+CONFIG_PACKAGE_xray-core=y
+CONFIG_PACKAGE_v2ray-geoip=y
+CONFIG_PACKAGE_v2ray-geosite=y
+CONFIG_PACKAGE_shadowsocks-rust=y
+CONFIG_PACKAGE_hysteria=y
+CONFIG_PACKAGE_naive=y
+CONFIG_PACKAGE_trojan=y
+
+# ===== OpenClash 核心与依赖组件 =====
 CONFIG_PACKAGE_openclash=y
 CONFIG_PACKAGE_luci-app-openclash=y
-CONFIG_PACKAGE_clash=y
 CONFIG_PACKAGE_clash-meta=y
 
-# OpenClash 依赖
+# 两个代理插件共用的系统辅助工具链
 CONFIG_PACKAGE_bash=y
 CONFIG_PACKAGE_coreutils=y
 CONFIG_PACKAGE_coreutils-nohup=y
@@ -187,117 +146,68 @@ CONFIG_PACKAGE_jq=y
 CONFIG_PACKAGE_jsonfilter=y
 CONFIG_PACKAGE_resolveip=y
 CONFIG_PACKAGE_gawk=y
+CONFIG_PACKAGE_curl=y
+CONFIG_PACKAGE_tar=y
 
-# ===== Passwall2 =====
-CONFIG_PACKAGE_luci-app-passwall2=y
-CONFIG_PACKAGE_luci-app-passwall_Nftables_Transparent_Proxy=y
-CONFIG_PACKAGE_luci-i18n-passwall2-zh-cn=y
+# ===== DNS 过滤与 AdGuard Home 体系 =====
+CONFIG_PACKAGE_adguardhome=y
+CONFIG_PACKAGE_luci-app-smartdns=y
 
-# ===== 核心组件 =====
-CONFIG_PACKAGE_xray-core=y
-CONFIG_PACKAGE_sing-box=y
-CONFIG_PACKAGE_chinadns-ng=y
-CONFIG_PACKAGE_dns2socks=y
-CONFIG_PACKAGE_dns2tcp=y
-
-# ===== 网络优化 =====
+# ===== 网络吞吐与 QOS 优化 (BBR + CAKE) =====
 CONFIG_PACKAGE_kmod-tcp-bbr=y
-CONFIG_PACKAGE_kmod-nft-tproxy=y
 CONFIG_PACKAGE_kmod-sched-core=y
 CONFIG_PACKAGE_kmod-sched-cake=y
-CONFIG_PACKAGE_luci-app-sqm=y
-CONFIG_PACKAGE_luci-i18n-sqm-zh-cn=y
 
-# ===== 监控与日志 =====
+# ===== 系统常用与诊断工具 =====
 CONFIG_PACKAGE_logd=y
 CONFIG_PACKAGE_urandom=y
-
-# ===== 文本与工具包 =====
-CONFIG_PACKAGE_sed=y
-CONFIG_PACKAGE_grep=y
-CONFIG_PACKAGE_awk=y
-CONFIG_PACKAGE_gzip=y
-CONFIG_PACKAGE_unzip=y
-CONFIG_PACKAGE_nano=y
-CONFIG_PACKAGE_vim=y
-CONFIG_PACKAGE_curl=y
 CONFIG_PACKAGE_wget-ssl=y
-CONFIG_PACKAGE_openssh-client=y
-# CONFIG_PACKAGE_openssh-server is not set
-CONFIG_PACKAGE_file=y
-CONFIG_PACKAGE_tar=y
+CONFIG_PACKAGE_nano=y
+CONFIG_PACKAGE_htop=y
+CONFIG_PACKAGE_tcpdump=y
 CONFIG_PACKAGE_bind-dig=y
-CONFIG_PACKAGE_iputils-traceroute=y
 CONFIG_PACKAGE_mtr=y
-CONFIG_PACKAGE_netcat-openbsd=y
-CONFIG_PACKAGE_open-vm-tools=y
+CONFIG_PACKAGE_lm-sensors=y
 
-# ===== 时间同步 =====
-CONFIG_PACKAGE_ntpd=y
-CONFIG_PACKAGE_ntpdate=y
-CONFIG_PACKAGE_zoneinfo-china=y
-
-# ===== 额外 LuCI 插件 =====
+# ===== 防火墙扩展组件 =====
 CONFIG_PACKAGE_luci-app-ttyd=y
 CONFIG_PACKAGE_luci-app-acme=y
 CONFIG_PACKAGE_luci-app-ddns=y
-CONFIG_PACKAGE_luci-app-diskman=y
-CONFIG_PACKAGE_luci-app-watchcat=y
-CONFIG_PACKAGE_luci-app-statistics=y
-CONFIG_PACKAGE_luci-app-nlbwmon=y
-CONFIG_PACKAGE_luci-app-netdata=y
-CONFIG_PACKAGE_luci-app-fail2ban=y
-CONFIG_PACKAGE_luci-app-attendedsysupgrade=y
-CONFIG_PACKAGE_luci-app-banip=y
+CONFIG_PACKAGE_luci-app-sqm=y
 
-# ===== 中文语言包 =====
+# 显式屏蔽已剔除组件 (防止上游 Feed 自动递归引入)
+# CONFIG_PACKAGE_adblock-fast is not set
+# CONFIG_PACKAGE_luci-app-adblock-fast is not set
+# CONFIG_PACKAGE_banip is not set
+# CONFIG_PACKAGE_luci-app-banip is not set
+
+# ===== 国际化中文语言包 =====
 CONFIG_LUCI_LANG_zh_Hans=y
 CONFIG_PACKAGE_luci-i18n-base-zh-cn=y
-CONFIG_PACKAGE_luci-i18n-status-zh-cn=y
 CONFIG_PACKAGE_luci-i18n-firewall-zh-cn=y
-CONFIG_PACKAGE_luci-i18n-opkg-zh-cn=y
-CONFIG_PACKAGE_luci-i18n-openvpn-zh-cn=y
+CONFIG_PACKAGE_luci-i18n-passwall-zh-cn=y
+CONFIG_PACKAGE_luci-i18n-smartdns-zh-cn=y
 CONFIG_PACKAGE_luci-i18n-ttyd-zh-cn=y
-CONFIG_PACKAGE_luci-i18n-argon-config-zh-cn=y
-CONFIG_PACKAGE_luci-i18n-attendedsysupgrade-zh-cn=y
-CONFIG_PACKAGE_luci-i18n-banip-zh-cn=y
-CONFIG_PACKAGE_luci-i18n-sqm-zh-cn=y
-CONFIG_PACKAGE_luci-i18n-upnp-zh-cn=y
-CONFIG_PACKAGE_luci-i18n-adguardhome-zh-cn=y
 
-# ===== 编译优化 =====
+# ===== 生产级内核安全加固 =====
 CONFIG_CCACHE=y
 CONFIG_KERNEL_KALLSYMS=n
 CONFIG_KERNEL_DEBUG_INFO=n
 CONFIG_STRIP_KERNEL_EXPORTS=y
 
-# ===== 内核配置（安全强化） =====
 CONFIG_KERNEL_SWAP=y
 CONFIG_KERNEL_SYN_COOKIES=y
 CONFIG_KERNEL_DEFAULT_TCP_CONG="bbr"
-CONFIG_KERNEL_PRINTK=y
 
-# 内核安全强化
+# 内存与堆栈保护
 CONFIG_KERNEL_STACKPROTECTOR=y
 CONFIG_KERNEL_STACKPROTECTOR_STRONG=y
 CONFIG_KERNEL_PAGE_TABLE_ISOLATION=y
 CONFIG_KERNEL_HARDENED_USERCOPY=y
 CONFIG_KERNEL_SLAB_FREELIST_RANDOM=y
 CONFIG_KERNEL_SLAB_FREELIST_HARDENED=y
-CONFIG_KERNEL_REFCOUNT_FULL=y
-CONFIG_KERNEL_SECURITY=y
-CONFIG_KERNEL_SECURITY_NETWORK=y
-CONFIG_KERNEL_SECURITY_NETWORK_XFRM=y
-CONFIG_KERNEL_SECURITY_YAMA=y
-CONFIG_KERNEL_LSM="landlock,lockdown,yama"
-CONFIG_KERNEL_GCC_PLUGIN_STRUCTLEAK=y
-CONFIG_KERNEL_GCC_PLUGIN_STRUCTLEAK_BYREF_ALL=y
-CONFIG_KERNEL_GCC_PLUGIN_STACKLEAK=y
+CONFIG_KERNEL_FORTIFY_SOURCE=y
 
-# Intel Hardware Acceleration (AES-NI & QAT)
-CONFIG_PACKAGE_intel-microcode=y
-CONFIG_PACKAGE_iucode-tool=y
-CONFIG_PACKAGE_kmod-intel-qat=y
-CONFIG_OPENSSL_ENGINE=y
-CONFIG_OPENSSL_WITH_ASM=y
-CONFIG_OPENSSL_OPTIMIZE_SPEED=y
+# Seccomp 沙箱
+CONFIG_KERNEL_SECCOMP=y
+CONFIG_KERNEL_SECCOMP_FILTER=y
