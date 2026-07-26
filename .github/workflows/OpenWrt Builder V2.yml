@@ -3,6 +3,8 @@ name: OpenWrt Builder V2
 on:
   repository_dispatch:
   workflow_dispatch:
+  schedule:
+    - cron: '0 10 * * 6'
 
 env:
   REPO_URL: https://github.com/openwrt/openwrt
