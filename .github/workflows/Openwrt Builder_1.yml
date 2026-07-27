@@ -1,3 +1,5 @@
+# Build OpenWrt 25.12 Secure Edition - 修订版
+# 主要修复：permissions、release token、稳健的 bin 目录选择、SSH 条件简化、apt 包列表整理、超时与 fetch-depth
 name: Build OpenWrt 25.12 Secure Edition
 
 on:
@@ -9,6 +11,15 @@ on:
         required: false
         default: 'false'
 
+permissions:
+  contents: write    # 需要写权限以创建 release / 上传 release asset
+  packages: write
+  actions: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   REPO_URL: https://github.com/openwrt/openwrt
   REPO_BRANCH: openwrt-25.12
@@ -16,85 +27,139 @@ env:
   CONFIG_FILE: .config
   DIY_P1_SH: diy-part1.sh
   DIY_P2_SH: diy-part2.sh
-  UPLOAD_BIN_DIR: false
-  UPLOAD_FIRMWARE: true
-  UPLOAD_RELEASE: true
+  UPLOAD_BIN_DIR: "false"
+  UPLOAD_FIRMWARE: "true"
+  UPLOAD_RELEASE: "true"
   TZ: Asia/Shanghai
 
 jobs:
   build:
     runs-on: ubuntu-24.04
+    timeout-minutes: 360
 
     steps:
     - name: Checkout
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 0   # 获取完整历史，便于创建 tag/release
 
     - name: Initialization environment
       env:
         DEBIAN_FRONTEND: noninteractive
       run: |
-        # 1. 修复、重置并强制更新基础软件源
+        set -euo pipefail
+
+        # 清理并更新 apt 列表
         sudo rm -rf /var/lib/apt/lists/*
         sudo apt-get update -y
-        
-        # 2. 安装编译 OpenWrt 25.12 必需的依赖（已修正 Ubuntu 24.04+ 的包名冲突）
-        sudo -E apt-get -y install ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential bzip2 ccache cmake cpio curl device-tree-compiler fastjar flex gawk gettext gcc-multilib g++-multilib git gperf haveged help2man intltool libc6-dev-i386 libelf-dev libglib2.0-dev libgmp-dev libltdl-dev libmpc-dev libmpfr-dev libncurses5-dev libncursesw5-dev libreadline-dev libssl-dev libtool lrzsz genisoimage ninja-build p7zip p7zip-full patch pkgconf python3 python3-pip python3-ply python3-docutils qemu-utils rsync scons squashfs-tools subversion swig texinfo u-boot-tools upx-ucl unzip nodejs xz-utils zlib1g-dev zstd
-        
-        # 3. 设置时区与工作目录
+
+        # 安装常见的 OpenWrt 编译依赖（适配 Ubuntu 24.04）
+        # 如果某些包在你的 runner 上不存在，可以根据需要增删
+        sudo -E apt-get install -y \
+          autoconf \
+          automake \
+          asciidoc \
+          binutils \
+          bison \
+          bzip2 \
+          ccache \
+          cmake \
+          cpio \
+          curl \
+          device-tree-compiler \
+          flex \
+          gawk \
+          gettext \
+          git \
+          gnupg \
+          java-common \
+          default-jdk \
+          libncurses-dev \
+          libssl-dev \
+          libelf-dev \
+          python3 \
+          python3-distutils \
+          python3-venv \
+          rsync \
+          unzip \
+          wget \
+          zip \
+          build-essential \
+          pkg-config \
+          file
+
+        # 时区与工作目录
         sudo timedatectl set-timezone "${{ env.TZ }}"
         sudo mkdir -p /workdir
-        sudo chown $USER:$USER /workdir
+        sudo chown "$USER:$USER" /workdir
 
     - name: Clone source code
       working-directory: /workdir
       run: |
+        set -euo pipefail
         df -h
-        git clone $REPO_URL -b $REPO_BRANCH openwrt
-        ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
+        git clone "${REPO_URL}" -b "${REPO_BRANCH}" openwrt
+        # 方便后续步骤在 $GITHUB_WORKSPACE 下访问源码
+        ln -sf /workdir/openwrt "$GITHUB_WORKSPACE/openwrt"
 
     - name: Load custom feeds & DIY Script 1
       run: |
-        [ -e $FEEDS_CONF ] && cp $FEEDS_CONF openwrt/feeds.conf.default
-        chmod +x $DIY_P1_SH
-        cd openwrt
-        $GITHUB_WORKSPACE/$DIY_P1_SH
+        set -euo pipefail
+        [ -e "${FEEDS_CONF}" ] && cp "${FEEDS_CONF}" openwrt/feeds.conf.default
+        if [ -e "${DIY_P1_SH}" ]; then
+          chmod +x "${DIY_P1_SH}"
+          cd openwrt
+          "$GITHUB_WORKSPACE/${DIY_P1_SH}"
+        else
+          echo "No ${DIY_P1_SH} found, skipping."
+        fi
 
     - name: Update & Install feeds
       run: |
+        set -euo pipefail
         cd openwrt
         ./scripts/feeds update -a
         ./scripts/feeds install -a
 
     - name: Load custom configuration & DIY Script 2
       run: |
-        [ -e $CONFIG_FILE ] && cp $CONFIG_FILE openwrt/.config
-        chmod +x $DIY_P2_SH
-        cd openwrt
-        $GITHUB_WORKSPACE/$DIY_P2_SH
+        set -euo pipefail
+        [ -e "${CONFIG_FILE}" ] && cp "${CONFIG_FILE}" openwrt/.config
+        if [ -e "${DIY_P2_SH}" ]; then
+          chmod +x "${DIY_P2_SH}"
+          cd openwrt
+          "$GITHUB_WORKSPACE/${DIY_P2_SH}"
+        else
+          echo "No ${DIY_P2_SH} found, skipping."
+        fi
 
     - name: SSH connection to Actions
       uses: P3TERX/ssh2actions@main
-      if: (github.event.inputs.ssh == 'true' && github.event.inputs.ssh != 'false') || contains(github.event.action, 'ssh')
+      if: github.event.inputs.ssh == 'true' || contains(github.event.action, 'ssh')
 
     - name: Download package
       id: package
       run: |
+        set -euo pipefail
         cd openwrt
         make defconfig
-        make download -j8
-        find dl -size -1024k -exec ls -l {} \;
-        find dl -size -1024k -exec rm -rf {} \;
+        make download -j8 || true
+        # 检查并移除异常小文件（小于 1MB），保留正常下载
+        find dl -type f -size -1024k -exec ls -l {} \; || true
+        find dl -type f -size -1024k -exec rm -f {} \; || true
 
     - name: Compile the firmware
       id: compile
       run: |
+        set -euo pipefail
         cd openwrt
-        echo -e "$(nproc) thread compile"
-        make tools/compile -j$(nproc) || make tools/compile -j1 V=s
-        make toolchain/compile -j$(nproc) || make toolchain/compile -j1 V=s
-        make -j$(nproc) || make -j1 || make -j1 V=s
-        echo "status=success" >> $GITHUB_OUTPUT
-        grep 'CONFIG_TARGET_.*=y' .config | head -n 3
+        echo "$(nproc) thread compile"
+        make tools/compile -j"$(nproc)" || make tools/compile -j1 V=s
+        make toolchain/compile -j"$(nproc)" || make toolchain/compile -j1 V=s
+        make -j"$(nproc)" || make -j1 || make -j1 V=s
+        echo "status=success" >> "$GITHUB_OUTPUT"
+        # 列出前三个启用的 target 配置，便于日志查看
+        grep 'CONFIG_TARGET_.*=y' .config | head -n 3 || true
 
     - name: Check space usage
       if: (!cancelled())
@@ -104,10 +169,19 @@ jobs:
       id: organize
       if: env.UPLOAD_FIRMWARE == 'true' && !cancelled()
       run: |
-        cd openwrt/bin/targets/*/*
-        rm -rf packages
-        echo "FIRMWARE=$PWD" >> $GITHUB_ENV
-        echo "status=success" >> $GITHUB_OUTPUT
+        set -euo pipefail
+        # 选择第一个匹配的目标目录（更稳健）并检查存在性
+        first_dir=$(ls -d openwrt/bin/targets/*/* 2>/dev/null | head -n1 || true)
+        if [ -z "$first_dir" ]; then
+          echo "No firmware directory found under openwrt/bin/targets" >&2
+          echo "status=failed" >> "$GITHUB_OUTPUT"
+          exit 1
+        fi
+        cd "$first_dir"
+        rm -rf packages || true
+        echo "FIRMWARE=$PWD" >> "$GITHUB_ENV"
+        echo "status=success" >> "$GITHUB_OUTPUT"
+        echo "Found firmware directory: $PWD"
 
     - name: Upload firmware directory
       uses: actions/upload-artifact@v4
@@ -120,8 +194,10 @@ jobs:
       id: tag
       if: env.UPLOAD_RELEASE == 'true' && !cancelled()
       run: |
-        echo "release_tag=$(date +"%Y.%m.%d-%H%M")" >> $GITHUB_OUTPUT
-        echo "status=success" >> $GITHUB_OUTPUT
+        set -euo pipefail
+        # 使用日期时间生成唯一 release tag
+        echo "release_tag=$(date +'%Y.%m.%d-%H%M')" >> "$GITHUB_OUTPUT"
+        echo "status=success" >> "$GITHUB_OUTPUT"
 
     - name: Upload firmware to release
       uses: softprops/action-gh-release@v2
@@ -129,3 +205,4 @@ jobs:
       with:
         tag_name: ${{ steps.tag.outputs.release_tag }}
         files: ${{ env.FIRMWARE }}/*
+        token: ${{ secrets.GITHUB_TOKEN }}
