@@ -1,355 +1,130 @@
-name: OpenWrt Builder with Openclash
+name: Build OpenWrt 25.12 Secure Edition
 
 on:
   repository_dispatch:
   workflow_dispatch:
+    inputs:
+      ssh:
+        description: 'SSH connection to Actions'
+        required: false
+        default: 'false'
 
 env:
-  REPO_URL: https://github.com/openwrt/openwrt
+  REPO_URL: https://github.com
   REPO_BRANCH: openwrt-25.12
-
   FEEDS_CONF: feeds.conf.default
-  CONFIG_FILE: .config1
-
-  #DIY_P1_SH: diy-part1.sh
+  CONFIG_FILE: .config
+  DIY_P1_SH: diy-part1.sh
   DIY_P2_SH: diy-part2.sh
-
+  UPLOAD_BIN_DIR: false
+  UPLOAD_FIRMWARE: true
   UPLOAD_RELEASE: true
-
   TZ: Asia/Shanghai
-  CCACHE_SIZE: 4G
-
 
 jobs:
-
   build:
-
-    runs-on: ubuntu-latest
-
-    permissions:
-      contents: write
-      actions: write
-
+    runs-on: ubuntu-24.04
 
     steps:
-
     - name: Checkout
-      uses: actions/checkout@v5
+      uses: actions/checkout@v4
 
-
-    - name: Free Disk Space
-      run: |
-        echo "Cleaning runner disk..."
-
-        sudo rm -rf \
-          /usr/share/dotnet \
-          /usr/local/lib/android \
-          /opt/ghc \
-          /usr/local/.rustup
-
-        sudo docker image prune -af
-
-        df -h
-
-
-
-    - name: Install Build Dependencies
+    - name: Initialization environment
       env:
         DEBIAN_FRONTEND: noninteractive
-
       run: |
-
-        sudo apt-get update
-
-        sudo apt-get install -y \
-          build-essential \
-          gcc \
-          g++ \
-          git \
-          curl \
-          wget \
-          rsync \
-          unzip \
-          ccache \
-          python3 \
-          python3-pip \
-          python3-ply \
-          python3-docutils \
-          flex \
-          bison \
-          gawk \
-          gettext \
-          patch \
-          pkgconf \
-          cmake \
-          ninja-build \
-          libncurses-dev \
-          zlib1g-dev \
-          libssl-dev \
-          libelf-dev \
-          qemu-utils \
-          squashfs-tools \
-          zstd
-
-        sudo apt-get clean
-
-
-
-    - name: Restore ccache
-
-      uses: actions/cache@v5
-
-      with:
-
-        path: ~/.ccache
-
-        key: |
-          ${{ runner.os }}-ccache-${{ env.REPO_BRANCH }}
-
-        restore-keys: |
-          ${{ runner.os }}-ccache-
-
-
-
-    - name: Configure ccache
-
-      run: |
-
-        mkdir -p ~/.ccache
-
-        ccache -M $CCACHE_SIZE
-
-        ccache -z
-
-        echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
-
-
-
-    - name: Prepare Work Directory
-
-      run: |
-
+        sudo rm -rf /etc/apt/sources.list.d/* /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/vcpkg
+        sudo -E apt-get -qq update
+        sudo -E apt-get -qq install -y ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential bzip2 ccache cmake cpio curl device-tree-compiler fastjar flex gawk gettext gcc-multilib g++-multilib git gperf haveged help2man intltool libc6-dev-i386 libelf-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libncurses5-dev libncursesw5-dev libreadline-dev libssl-dev libtool lrzsz mkisofs nano ninja-build p7zip p7zip-full patch pkgconf python3 python3-pip python3-ply python3-docutils qemu-utils rsync scons squashfs-tools subversion swig texinfo u-boot-tools upx-ucl unzip nodejs xz-utils zlib1g-dev zstd
+        sudo -E apt-get -qq autoremove --purge
+        sudo -E apt-get -qq clean
+        sudo timedatectl set-timezone "${{ env:TZ }}"
         sudo mkdir -p /workdir
+        sudo chown $USER:$USER /workdir
 
-        sudo chown $USER:$GROUPS /workdir
-
-
-
-    - name: Clone OpenWrt Source
-
+    - name: Clone source code
       working-directory: /workdir
-
       run: |
+        df -h
+        git clone $REPO_URL -b $REPO_BRANCH openwrt
+        ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
 
-        git clone \
-          --depth=1 \
-          -b $REPO_BRANCH \
-          $REPO_URL \
-          openwrt
-
-
+    - name: Load custom feeds & DIY Script 1
+      run: |
+        [ -e $FEEDS_CONF ] && cp $FEEDS_CONF openwrt/feeds.conf.default
+        chmod +x $DIY_P1_SH
         cd openwrt
+        $GITHUB_WORKSPACE/$DIY_P1_SH
 
-        echo "OpenWrt commit:"
-        git log -1 --oneline
-
-
-
-    - name: Restore OpenWrt dl Cache
-
-      uses: actions/cache@v5
-
-      with:
-
-        path: /workdir/openwrt/dl
-
-        key: |
-          ${{ runner.os }}-dl-${{ hashFiles('feeds.conf.default') }}
-
-        restore-keys: |
-          ${{ runner.os }}-dl-
-
-
-    - name: Prepare Feeds Configuration
-
+    - name: Update & Install feeds
       run: |
-
-        cd /workdir/openwrt
-
-
-        if [ -f "$GITHUB_WORKSPACE/$FEEDS_CONF" ]; then
-
-          echo "Using custom feeds.conf.default"
-
-          cp \
-            "$GITHUB_WORKSPACE/$FEEDS_CONF" \
-            feeds.conf.default
-
-        fi
-
-
-
-    - name: Update Feeds
-
-      run: |
-
-        cd /workdir/openwrt
-
-
-        echo "::group::Updating feeds"
-
+        cd openwrt
         ./scripts/feeds update -a
-
-        echo "::endgroup::"
-
-
-
-    #- name: Apply DIY Part1
-
-      #run: |
-
-        #cd /workdir/openwrt
-
-        #if [ -f "$GITHUB_WORKSPACE/$DIY_P1_SH" ]; then
-
-          #chmod +x "$GITHUB_WORKSPACE/$DIY_P1_SH"
-
-          #echo "Running DIY Part1"
-
-          #"$GITHUB_WORKSPACE/$DIY_P1_SH"
-
-        #else
-
-          #echo "No DIY Part1 script"
-
-        #fi
-
-
-
-    - name: Apply OpenWrt 25.12 Compatibility Patch
-
-      run: |
-
-        cd /workdir/openwrt
-
-        echo "::group::Applying patches"
-
-        echo "::endgroup::"
-
-
-
-    - name: Install Feeds
-
-      run: |
-
-        cd /workdir/openwrt
-
         ./scripts/feeds install -a
 
-
-
-    - name: Prepare Build Configuration
-
+    - name: Load custom configuration & DIY Script 2
       run: |
+        [ -e $CONFIG_FILE ] && cp $CONFIG_FILE openwrt/.config
+        chmod +x $DIY_P2_SH
+        cd openwrt
+        $GITHUB_WORKSPACE/$DIY_P2_SH
 
-        cd /workdir/openwrt
+    - name: SSH connection to Actions
+      uses: P3TERX/ssh2actions@main
+      if: (github.event.inputs.ssh == 'true' && github.event.inputs.ssh != 'false') || contains(github.event.action, 'ssh')
 
-        if [ -f "$GITHUB_WORKSPACE/$CONFIG_FILE" ]; then
-
-          echo "Using custom .config"
-
-          cp "$GITHUB_WORKSPACE/$CONFIG_FILE" .config
-
-        else
-
-          echo "No custom .config found"
-
-        fi
-
-
-
-    - name: Apply DIY Part2
-
+    - name: Download package
+      id: package
       run: |
-
-        cd /workdir/openwrt
-
-        if [ -f "$GITHUB_WORKSPACE/$DIY_P2_SH" ]; then
-
-          chmod +x "$GITHUB_WORKSPACE/$DIY_P2_SH"
-
-          echo "Running DIY Part2"
-
-          "$GITHUB_WORKSPACE/$DIY_P2_SH"
-
-        else
-
-          echo "No DIY Part2 script"
-
-        fi
-
-
-
-    - name: Generate Build Configuration
-
-      run: |
-
-        cd /workdir/openwrt
-
+        cd openwrt
         make defconfig
-
-
-
-    - name: Download Build Dependencies
-
-      run: |
-
-        cd /workdir/openwrt
-
         make download -j8
+        find dl -size -1024k -exec ls -l {} \;
+        find dl -size -1024k -exec rm -rf {} \;
 
-
-
-    - name: Build OpenWrt
-
+    - name: Compile the firmware
+      id: compile
       run: |
+        cd openwrt
+        echo -e "$(nproc) thread compile"
+        # 针对 25.12 内核加固和首次 APK 签名，优先使用单线程生成核心工具链，防死锁
+        make tools/compile -j$(nproc) || make tools/compile -j1 V=s
+        make toolchain/compile -j$(nproc) || make toolchain/compile -j1 V=s
+        # 随后火力全开多线程编译全局
+        make -j$(nproc) || make -j1 || make -j1 V=s
+        echo "status=success" >> $GITHUB_OUTPUT
+        grep 'CONFIG_TARGET_.*=y' .config | head -n 3
 
-        cd /workdir/openwrt
+    - name: Check space usage
+      if: (!cancelled())
+      run: df -h
 
-        echo "Starting build..."
-
-        make -j$(nproc) V=s 2>&1 | tee build.log
-
-        echo "Build completed"
-
-
-
-    - name: Check Build Results
-
-      if: always()
-
+    - name: Organize files
+      id: organize
+      if: env.UPLOAD_FIRMWARE == 'true' && !cancelled()
       run: |
+        cd openwrt/bin/targets/*/*
+        rm -rf packages
+        echo "FIRMWARE=$PWD" >> $GITHUB_ENV
+        echo "status=success" >> $GITHUB_OUTPUT
 
-        cd /workdir/openwrt
-
-        echo "Build artifacts:"
-
-        ls -lh bin/targets/x86/64/ 2>/dev/null || echo "No build artifacts found"
-
-
-
-    - name: Upload Release Assets
-
-      if: env.UPLOAD_RELEASE == 'true' && success()
-
-      uses: softprops/action-gh-release@v1
-
+    - name: Upload firmware directory
+      uses: actions/upload-artifact@v4
+      if: steps.organize.outputs.status == 'success' && !cancelled()
       with:
+        name: OpenWrt_firmware
+        path: ${{ env:FIRMWARE }}
 
-        files: /workdir/openwrt/bin/targets/x86/64/*
+    - name: Generate release tag
+      id: tag
+      if: env.UPLOAD_RELEASE == 'true' && !cancelled()
+      run: |
+        echo "release_tag=$(date +"%Y.%m.%d-%H%M")" >> $GITHUB_OUTPUT
+        echo "status=success" >> $GITHUB_OUTPUT
 
-        tag_name: OpenWrt-${{ env.REPO_BRANCH }}-${{ github.run_number }}
-
-      env:
-
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Upload firmware to release
+      uses: softprops/action-gh-release@v2
+      if: steps.tag.outputs.status == 'success' && !cancelled()
+      with:
+        tag_name: ${{ steps.tag.outputs.release_tag }}
+        files: ${{ env:FIRMWARE }}/*
