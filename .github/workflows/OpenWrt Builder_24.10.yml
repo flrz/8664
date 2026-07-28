@@ -1,5 +1,5 @@
 
-name: Openwrt Builder_24.10
+name: Openwrt Builder_24.10 #passwall
 
 on:
   repository_dispatch:
@@ -10,7 +10,7 @@ on:
 env:
   REPO_URL: https://github.com/openwrt/openwrt
   REPO_BRANCH: openwrt-24.10
-  FEEDS_CONF: feed.confi1.default
+  FEEDS_CONF: feed.confi.default
   CONFIG_FILE: .config1
   DIY_P1_SH: diy-part1.sh
   DIY_P2_SH: diy-part2.sh
