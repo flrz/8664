@@ -43,9 +43,9 @@ echo "src-git flrz https://github.com/flrz/openwrt-packages" >> feeds.conf.defau
     error_exit "Failed to add flrz feed source"
 
 # 添加 OpenClash feed
-echo "src-git openclash https://github.com/vernesong/OpenClash" >> feeds.conf.default && \
-    success_msg "Added OpenClash feed source" || \
-    error_exit "Failed to add OpenClash feed source"
+#echo "src-git openclash https://github.com/vernesong/OpenClash" >> feeds.conf.default && \
+    #success_msg "Added OpenClash feed source" || \
+    #error_exit "Failed to add OpenClash feed source"
 
 # 可选：添加其他流行的 feed
 # echo "src-git helloworld https://github.com/fw876/helloworld.git" >> feeds.conf.default
