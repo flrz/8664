@@ -1,5 +1,5 @@
 
-name: Openwrt Builder_25.12 #released
+name: Openwrt Builder_25.12 #release
 
 on:
   repository_dispatch:
