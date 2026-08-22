@@ -1,18 +1,19 @@
-name: Openwrt Builder_25.12 #SNAPSHOT
+
+name: Openwrt Builder_25.12.n #stable release
 
 on:
   repository_dispatch:
   workflow_dispatch:
-  schedule:
-    - cron: 0 10 * * 6
+  #schedule:
+    #- cron: 0 10 * * 6
 
 env:
   REPO_URL: https://github.com/openwrt/openwrt
   REPO_BRANCH: openwrt-25.12
-  FEEDS_CONF: feeds.conf1.default
-  CONFIG_FILE: .config
-  DIY_P1_SH: diy-part3.sh
-  DIY_P2_SH: diy-part4.sh
+  FEEDS_CONF: feeds.conf.default
+  CONFIG_FILE: .config1
+  DIY_P1_SH: diy-part1.sh
+  DIY_P2_SH: diy-part2.sh
   UPLOAD_BIN_DIR: false
   UPLOAD_FIRMWARE: true
   UPLOAD_RELEASE: true
@@ -22,7 +23,7 @@ jobs:
   build:
     runs-on: ubuntu-24.04
     permissions:
-      actions: write
+      actions: write     
       contents: write
 
     steps:
@@ -101,36 +102,6 @@ jobs:
         ./scripts/feeds update -a
         ./scripts/feeds install -a
         echo "Patch application completed"
-
-     - name: Download Clash Meta Core (预置到固件)
-       working-directory: openwrt
-       run: |
-         mkdir -p files/etc/openclash/core
-
-         echo "Downloading Clash Meta core for amd64..."
-         # 优先使用 vernesong 维护的稳定核心
-         curl -L --retry 5 --retry-delay 3 \
-           -o /tmp/clash_meta.tar.gz \
-           "https://raw.githubusercontent.com/vernesong/OpenClash/core/master/meta/clash-linux-amd64.tar.gz" || \
-         curl -L --retry 5 --retry-delay 3 \
-           -o /tmp/clash_meta.tar.gz \
-           "https://github.com/vernesong/OpenClash/raw/core/master/meta/clash-linux-amd64.tar.gz"
-
-         tar -xzf /tmp/clash_meta.tar.gz -C /tmp
-         # 兼容不同解压出来的文件名
-         if [ -f /tmp/clash ]; then
-           mv /tmp/clash files/etc/openclash/core/clash_meta
-         elif [ -f /tmp/mihomo ]; then
-           mv /tmp/mihomo files/etc/openclash/core/clash_meta
-         else
-           echo "Error: cannot find clash binary after extract"
-           ls -l /tmp
-           exit 1
-         fi
-
-         chmod +x files/etc/openclash/core/clash_meta
-         ls -lh files/etc/openclash/core/
-         echo "Clash Meta core prepared successfully"
 
     - name: Load custom configuration
       run: |
