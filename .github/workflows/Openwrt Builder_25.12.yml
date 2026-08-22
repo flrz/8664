@@ -19,7 +19,7 @@ env:
   TZ: Asia/Shanghai
 
 jobs:
-  build:
+    build:
     runs-on: ubuntu-24.04
     permissions:
       actions: write
