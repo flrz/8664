@@ -124,11 +124,6 @@ jobs:
         make download -j8
         find dl -size -1024c -exec ls -l {} \;
         find dl -size -1024c -exec rm -f {} \;
-
-    - name: Setup Go environment
-      uses: actions/setup-go@v5
-      with:
-        go-version: 'stable' # 自动安装系统环境下的最新稳定版 Go
         
     - name: Compile the firmware
       id: compile
