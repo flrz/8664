@@ -78,12 +78,12 @@ jobs:
         ./scripts/feeds update -a
         ./scripts/feeds install -a
 
-    - name: Remove official xray-core feed
-      working-directory: openwrt
-      run: |
-        rm -rf feeds/packages/net/xray-core
-        rm -rf feeds/packages/net/xray
-        ./scripts/feeds install -a
+    #- name: Remove official xray-core feed
+      #working-directory: openwrt
+      #run: |
+        #rm -rf feeds/packages/net/xray-core
+        #rm -rf feeds/packages/net/xray
+        #./scripts/feeds install -a
 
     - name: Download Clash Meta Core (预置到固件)
       working-directory: openwrt
