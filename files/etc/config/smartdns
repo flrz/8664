@@ -1,5 +1,5 @@
 config smartdns
-	option enabled '1'
+	option enabled '0'
 	option server_name 'smartdns'
 	option port '6053'
 	option tcp_server '1'
