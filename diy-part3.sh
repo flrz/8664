@@ -38,8 +38,8 @@ fi
 # 这样避免了 sed 行号变化的问题
 
 # 添加 flrz feed
-echo "src-git flrz https://github.com/flrz/openwrt-packages" >> feeds.conf.default && \
-    success_msg "Added flrz feed source" || \
+echo "src-git kenzok8 https://github.com/kenzok8/openwrt-packages" >> feeds.conf.default && \
+    success_msg "Added kenzok8 feed source" || \
     error_exit "Failed to add flrz feed source"
 
 # 添加 OpenClash feed
