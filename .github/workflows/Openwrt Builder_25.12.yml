@@ -78,6 +78,15 @@ jobs:
         ./scripts/feeds update -a
         ./scripts/feeds install -a
 
+    - name: Remove official xray-core feed
+      run: |
+        # 删除官方 feeds 中自带的 xray/xray-core 冲突源码目录
+        rm -rf feeds/packages/net/xray-core
+        rm -rf feeds/packages/net/xray
+          
+        # 如果你的 passwall 放在 package 目录下，重新强制刷新 feeds 关系
+        ./scripts/feeds install -a
+
     - name: Download Clash Meta Core (预置到固件)
       working-directory: openwrt
       run: |
