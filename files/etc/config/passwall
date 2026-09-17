@@ -1,5 +1,5 @@
 config global 'default'
-	option enabled '1'
+	    option enabled '1'
 
 config global_other 'default'
-	option direct_dns '119.29.29.29,223.5.5.5'
+	    option direct_dns '119.29.29.29,223.5.5.5'
