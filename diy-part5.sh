@@ -37,11 +37,6 @@ fi
 # 使用追加方式添加新 feed（推荐方式）
 # 这样避免了 sed 行号变化的问题
 
-# 添加 flrz feed
-echo "src-git flrz https://github.com/flrz/openwrt-packages" >> feeds.conf.default && \
-    success_msg "Added flrz feed source" || \
-    error_exit "Failed to add flrz feed source"
-
 # 添加 OpenClash feed
 echo "src-git openclash https://github.com/vernesong/OpenClash" >> feeds.conf.default && \
     success_msg "Added OpenClash feed source" || \
