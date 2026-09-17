@@ -1,4 +1,4 @@
-name: Openwrt Builder_25.12 #SNAPSHOT
+name: Immortalwrt Builder_25.12 #SNAPSHOT
 
 on:
   repository_dispatch:
@@ -7,7 +7,7 @@ on:
     #- cron: 0 10 * * 6
 
 env:
-  REPO_URL: https://github.com/openwrt/openwrt
+  REPO_URL: https://github.com/immortalwrt/immortalwrt
   REPO_BRANCH: openwrt-25.12
   FEEDS_CONF: feeds.conf1.default
   CONFIG_FILE: .config
