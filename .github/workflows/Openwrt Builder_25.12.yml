@@ -30,6 +30,9 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v4
 
+    - name: Verify Node Version
+      run: node -v
+
     - name: Initialization environment
       env:
         DEBIAN_FRONTEND: noninteractive
