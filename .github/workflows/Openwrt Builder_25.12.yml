@@ -82,11 +82,12 @@ jobs:
         ./scripts/feeds update -a
         ./scripts/feeds install -a
 
-    - name: Upgrade golang to 1.27
+    - name: Upgrade golang to latest
       run: |
         cd openwrt
         rm -rf feeds/packages/lang/golang
-        git clone --depth 1 -b 27.x https://github.com/sbwml/packages_lang_golang feeds/packages/lang/golang
+        # 不指定分支，直接拉默认分支（目前是 27.x，以后出 28.x 也会自动跟上）
+        git clone --depth 1 https://github.com/sbwml/packages_lang_golang feeds/packages/lang/golang
         ./scripts/feeds install -a
         # 清理可能残留的旧 golang 产物（可选）
         rm -rf build_dir/hostpkg/golang* staging_dir/hostpkg/lib/go-* 2>/dev/null || true
