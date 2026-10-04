@@ -29,36 +29,37 @@ if [[ ! -f feeds.conf.default ]]; then
     error_exit "feeds.conf.default not found in current directory"
 fi
 
-# 备份原始文件（用于调试和恢复）
+# 备份原始文件
 if ! cp feeds.conf.default feeds.conf.default.backup; then
     error_exit "Failed to backup feeds.conf.default"
 fi
 
-# 使用追加方式添加新 feed（推荐方式）
-# 这样避免了 sed 行号变化的问题
+# ==================== 添加额外 feeds ====================
 
-# 添加 flrz feed
+# 1. flrz
 echo "src-git flrz https://github.com/flrz/openwrt-packages" >> feeds.conf.default && \
-    success_msg "Added flrz feed source" || \
-    error_exit "Failed to add flrz feed source"
+    success_msg "Added flrz feed" || \
+    error_exit "Failed to add flrz feed"
 
-# 添加 OpenClash feed
+# 2. OpenClash
 echo "src-git openclash https://github.com/vernesong/OpenClash" >> feeds.conf.default && \
-    success_msg "Added OpenClash feed source" || \
-    error_exit "Failed to add OpenClash feed source"
+    success_msg "Added OpenClash feed" || \
+    error_exit "Failed to add OpenClash feed"
 
-# 可选：添加其他流行的 feed
-# echo "src-git helloworld https://github.com/fw876/helloworld.git" >> feeds.conf.default
-# echo "src-git passwall https://github.com/xiaorouji/openwrt-passwall.git;main" >> feeds.conf.default
+# 3. MosDNS (sbwml 维护的 v5 版本，推荐)
+echo "src-git mosdns https://github.com/sbwml/luci-app-mosdns.git;v5" >> feeds.conf.default && \
+    success_msg "Added mosdns feed" || \
+    error_exit "Failed to add mosdns feed"
 
-# 显示最终的 feeds 配置
+# 可选：如果需要官方 passwall 源，取消下面注释
+# echo "src-git passwall https://github.com/xiaorouji/openwrt-passwall.git;main" >> feeds.conf.default && \
+#     success_msg "Added passwall feed"
+
+# ==================== 显示最终配置 ====================
 echo ""
 echo "=========================================="
 echo "Final feeds configuration:"
 echo "=========================================="
 cat feeds.conf.default
 echo "=========================================="
-
 success_msg "DIY Part1 completed successfully"
-
-
