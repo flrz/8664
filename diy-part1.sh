@@ -37,7 +37,7 @@ fi
 # ==================== 添加额外 feeds ====================
 
 # 1. flrz
-echo "src-git flrz https://github.com/flrz/openwrt-packages" >> feeds.conf.default && \
+echo "src-git flrz https://github.com/flrz/openwrt_theme" >> feeds.conf.default && \
     success_msg "Added flrz feed" || \
     error_exit "Failed to add flrz feed"
 
