@@ -37,21 +37,16 @@ fi
 # ==================== 添加额外 feeds ====================
 
 # 1. Argon
-echo "src-git argon https://github.com/jerrykuku/luci-theme-argon" >> feeds.conf.default && \
+echo "src-git argon https://github.com/flrz/openwrt-packages" >> feeds.conf.default && \
     success_msg "Added argon feed" || \
     error_exit "Failed to add argon feed"
 
-# 2. Argon_config
-echo "src-git argon_config https://github.com/jerrykuku/luci-app-argon-config" >> feeds.conf.default && \
-    success_msg "Added argon_config feed" || \
-    error_exit "Failed to add argon_config feed"
-
-# 3. OpenClash
+# 2. OpenClash
 echo "src-git openclash https://github.com/vernesong/OpenClash" >> feeds.conf.default && \
     success_msg "Added OpenClash feed" || \
     error_exit "Failed to add OpenClash feed"
 
-# 4. MosDNS (sbwml 维护的 v5 版本，推荐)
+# 3. MosDNS (sbwml 维护的 v5 版本，推荐)
 echo "src-git mosdns https://github.com/sbwml/luci-app-mosdns.git;v5" >> feeds.conf.default && \
     success_msg "Added mosdns feed" || \
     error_exit "Failed to add mosdns feed"
