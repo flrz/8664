@@ -47,9 +47,9 @@ echo "src-git openclash https://github.com/vernesong/OpenClash" >> feeds.conf.de
     error_exit "Failed to add OpenClash feed"
 
 # 3. MosDNS (sbwml 维护的 v5 版本，推荐)
-echo "src-git mosdns https://github.com/sbwml/luci-app-mosdns.git;v5" >> feeds.conf.default && \
-    success_msg "Added mosdns feed" || \
-    error_exit "Failed to add mosdns feed"
+# echo "src-git mosdns https://github.com/sbwml/luci-app-mosdns.git;v5" >> feeds.conf.default && \
+    # success_msg "Added mosdns feed" || \
+    # error_exit "Failed to add mosdns feed"
 
 # 可选：如果需要官方 passwall 源，取消下面注释
 # echo "src-git passwall https://github.com/xiaorouji/openwrt-passwall.git;main" >> feeds.conf.default && \
